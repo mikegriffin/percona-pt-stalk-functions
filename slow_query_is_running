@@ -5,37 +5,38 @@
 
 trg_plugin() {
 
-long_query_time=5
-long_queries_running=5
-really_long_query_time=150
-really_long_queries_running=1
+PLUGIN_long_query_time=5
+PLUGIN_long_queries_running=5
+PLUGIN_really_long_query_time=150
+PLUGIN_really_long_queries_running=1
 
-too_many_slow=$(mysql -ss <<< "
+
+PLUGIN_too_many_slow=$(mysql -ss <<< "
 -- QUERYSTART
-SELECT COUNT(*) >= $long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
+SELECT COUNT(*) >= $PLUGIN_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
  WHERE ID<>CONNECTION_ID() AND
  COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
  AND USER<>'system user'
- AND Time >= $long_query_time
+ AND Time >= $PLUGIN_long_query_time
+-- QUERYEND
+")
+
+PLUGIN_too_many_really_slow=$(mysql -ss <<< "
+-- QUERYSTART
+SELECT COUNT(*) >= $PLUGIN_really_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
+ WHERE ID<>CONNECTION_ID() AND
+ COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
+ AND USER<>'system user'
+ AND Time >= $PLUGIN_really_long_query_time
 -- QUERYEND
 ")
 
 
-too_many_really_slow=$(mysql -ss <<< "
--- QUERYSTART
-SELECT COUNT(*) >= $long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
- WHERE ID<>CONNECTION_ID() AND
- COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
- AND USER<>'system user'
- AND Time >= $long_query_time
--- QUERYEND
-")
-
-
-if [[ $too_many_slow -eq 1 || $too_many_really_slow -eq 1 ]]
+if [[ $PLUGIN_too_many_slow -eq 1 || $PLUGIN_too_many_really_slow -eq 1 ]]
  then echo 1
  else echo 0
 fi
 
-
 }
+
+#trg_plugin
