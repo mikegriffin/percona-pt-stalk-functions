@@ -15,7 +15,7 @@ PLUGIN_too_many_slow=$(mysql -ss <<< "
 -- QUERYSTART
 SELECT COUNT(*) >= $PLUGIN_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
  WHERE ID<>CONNECTION_ID() AND
- COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
+ COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep','User Sleep','User Lock')
  AND USER<>'system user'
  AND Time >= $PLUGIN_long_query_time
 -- QUERYEND
@@ -25,7 +25,7 @@ PLUGIN_too_many_really_slow=$(mysql -ss <<< "
 -- QUERYSTART
 SELECT COUNT(*) >= $PLUGIN_really_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
  WHERE ID<>CONNECTION_ID() AND
- COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
+ COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep','User Sleep','User Lock')
  AND USER<>'system user'
  AND Time >= $PLUGIN_really_long_query_time
 -- QUERYEND
