@@ -1,0 +1,39 @@
+####
+# Example:
+# pt-stalk --variable=long_transaction_is_running --threshold=0 --cycles=1 --function /root/stalk-trigger.sh
+####
+
+trg_plugin() {
+
+PLUGIN_long_transaction_time=5
+PLUGIN_long_transactions_running=5
+PLUGIN_really_long_transaction_time=30
+PLUGIN_really_long_transactions_running=1
+
+
+PLUGIN_too_many_slow=$(mysql --defaults-file=/root/.my.cnf -ss <<< "
+-- QUERYSTART
+SELECT COUNT(trx_id) >= $PLUGIN_long_transactions_running
+ FROM INFORMATION_SCHEMA.INNODB_TRX
+ WHERE trx_started <= now() - interval $PLUGIN_long_transaction_time second
+-- QUERYEND
+")
+
+PLUGIN_too_many_really_slow=$(mysql --defaults-file=/root/.my.cnf -ss <<< "
+-- QUERYSTART
+SELECT COUNT(trx_id) >= $PLUGIN_really_long_transactions_running
+ FROM INFORMATION_SCHEMA.INNODB_TRX
+ WHERE trx_started <= now() - interval $PLUGIN_really_long_transaction_time second
+ AND trx_state = 'RUNNING'
+-- QUERYEND
+")
+
+
+if [[ $PLUGIN_too_many_slow -eq 1 || $PLUGIN_too_many_really_slow -eq 1 ]]
+ then echo 1
+ else echo 0
+fi
+
+}
+
+#trg_plugin
