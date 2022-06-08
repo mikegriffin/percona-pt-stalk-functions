@@ -1,0 +1,29 @@
+####
+# Example:
+# pt-stalk --variable=io_util --threshold=75 --cycles=3 --function /root/stalk-trigger.sh
+####
+
+trg_plugin() {
+
+## Pretend there is no load between certain times
+suppression_during=0
+suppression_start=0330
+suppression_end=0400
+
+#mysql_path_var=datadir
+mysql_path_var=tmpdir
+
+if [[ "${suppression_during}" -eq 1 ]]; then
+        now=$(date +"%H%M")
+        if [[ ( "$now" > "$suppression_start" && "$now" < "$suppression_end" ) ]]; then
+        echo 0
+        exit 0
+        fi
+fi
+
+[[ -d $(mysql -ss <<< "select @@$mysql_path_var") ]] || { echo "mysql_path_var $mysql_path_var not a directory variable" >&2; exit 1; }
+
+echo "0+$(iostat -Nkx 1 2 $(df -h $(mysql -ss <<< "select @@$mysql_path_var") | awk -F'/dev/| ' '/dev/ {print $2}' | sed 's/[0-9]//g') | tail -2 | head -1 | awk '{print $NF}' | sed 's^\..*^^')" | bc -q
+}
+
+#trg_plugin
