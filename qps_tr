@@ -19,7 +19,7 @@ if [[ "${suppression_during}" -eq 1 ]]; then
 fi
 
 mysql -ss <<< "
-SELECT CASE WHEN SUBSTRING_INDEX(@@version, '.', 2) = 5.6 THEN 'information_schema' WHEN SUBSTRING_INDEX(@@version, '.', 1) >= 10 THEN 'information_schema' ELSE 'performance_schema' END into @isps;
+SELECT CASE WHEN SUBSTRING_INDEX(@@version, '.', 2) <= 5.6 THEN 'information_schema' WHEN SUBSTRING_INDEX(@@version, '.', 1) >= 10 THEN 'information_schema' ELSE 'performance_schema' END into @isps;
 set @sql := CONCAT('SELECT VARIABLE_VALUE INTO @q1 FROM ',@isps,'.global_status WHERE VARIABLE_NAME = \'Questions\''); PREPARE mySt FROM @sql; EXECUTE mySt;
 select sleep(0.1) into @y;
 set @sql := CONCAT('SELECT VARIABLE_VALUE INTO @q2 FROM ',@isps,'.global_status WHERE VARIABLE_NAME = \'Questions\''); PREPARE mySt FROM @sql; EXECUTE mySt;
