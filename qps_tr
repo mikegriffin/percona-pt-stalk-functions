@@ -1,6 +1,6 @@
 ####
 # Example:
-# pt-stalk --variable=qps_tr --threshold=1 --cycles=2 --function /root/stalk-trigger.sh
+# pt-stalk --variable=qps_tr --threshold=0 --cycles=5 --function /root/stalk-trigger.sh
 ####
 
 trg_plugin() {
