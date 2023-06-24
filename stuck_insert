@@ -1,0 +1,32 @@
+####
+# Example:
+# pt-stalk --variable=stuck_insert --threshold=0 --cycles=1 --function /root/stalk-trigger.sh
+####
+
+trg_plugin() {
+
+PLUGIN_stuck_insert=0
+
+
+PLUGIN_stuck_insert=$(mysql -ss <<< "
+-- QUERYSTART
+SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PROCESSLIST
+ WHERE ID<>CONNECTION_ID()
+ AND COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
+ -- AND STATE NOT IN ('User Sleep','User Lock')
+ AND USER<>'system user'
+ AND COMMAND='Query'
+ AND TIME > 3
+ AND LOWER(INFO) LIKE '%insert%'
+-- QUERYEND
+")
+
+
+if [[ $PLUGIN_stuck_insert -eq 1 ]]
+ then echo 1
+ else echo 0
+fi
+
+}
+
+#trg_plugin
