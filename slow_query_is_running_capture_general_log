@@ -1,65 +1,83 @@
-####
+##############
+#
 # Example:
-# pt-stalk --variable=slow_query_is_running --threshold=0 --cycles=1 --function /root/stalk-trigger.sh
-####
+# pt-stalk --cycles=1 --run-time=30 --threshold=0 --function /root/stalk-trigger.sh
+#
+##############
 
-
-############# WARNING ############# 
-##### You must modify pt-stalk itself
-##### Replace this line:
-# # Plugin hook:
-# after_collect_sleep
-##### With this line:
-# # Plugin hook:
-# after_collect_sleep "$OPT_DEST/$prefix"
-############# WARNING ############# 
-
-         
-before_collect() {
-   mysql -ss <<< "set global general_log=1;" || true
-}
-after_collect() {
-   mysql -ss <<< "set global general_log=0;" || true
-}
-after_collect_sleep() {
-   /bin/mv `mysql -ss <<< 'select @@general_log_file'` $1-generallog || true
-}
-
+#### Warning, this will truncate any existing general_log and turn it off at the end
+#### Depends on changes in PT-2363 to gather general_log for entire --run-time of pt-stalk
+#### If you set --threshold > 0 you will not get a collect()
 
 trg_plugin() {
+    ## Configure thresholds for number of slow queries
+    PLUGIN_long_query_time=2
+    PLUGIN_long_queries_running=3
+    PLUGIN_really_long_query_time=10
+    PLUGIN_really_long_queries_running=1
 
-PLUGIN_long_query_time=5
-PLUGIN_long_queries_running=5
-PLUGIN_really_long_query_time=150
-PLUGIN_really_long_queries_running=1
+    ## LIKE match DML/DDL issued by clients
+    #PLUGIN_client_command='UPDATE %'
+    PLUGIN_client_command='%'
 
+    ## Pretend there is no load between certain times
+    PLUGIN_suppression_during=0
+    PLUGIN_suppression_start=0200
+    PLUGIN_suppression_end=0400
 
-PLUGIN_too_many_slow=$(mysql -ss <<< "
--- QUERYSTART
-SELECT COUNT(*) >= $PLUGIN_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
- WHERE ID<>CONNECTION_ID() AND
- COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
- AND USER<>'system user'
- AND Time >= $PLUGIN_long_query_time
--- QUERYEND
+    if [[ "${PLUGIN_suppression_during}" -eq 1 ]]; then
+        now=$(date +"%H%M")
+        # intentionally using "string comparison" due to leading zero
+        if [[ ("$now" > "$PLUGIN_suppression_start" && "$now" < "$PLUGIN_suppression_end") ]]; then
+            echo 0
+            exit 0
+        fi
+    fi
+
+    PLUGIN_too_many_slow=$(mysql -ss <<<"
+    -- QUERYSTART
+    SELECT COUNT(*) >= $PLUGIN_long_queries_running FROM information_schema.processlist
+     WHERE ID<>CONNECTION_ID()
+     AND COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Kill','Processlist','Shutdown','Sleep')
+     AND STATE NOT IN ('altering table','discard_or_import_tablespace','Killed','Rolling back','User lock','User sleep')
+     AND USER NOT IN ('system user')
+     AND Time >= $PLUGIN_long_query_time
+     AND INFO <> 'rollback'
+     AND INFO LIKE '$PLUGIN_client_command'
+    -- QUERYEND
 ")
 
-PLUGIN_too_many_really_slow=$(mysql -ss <<< "
--- QUERYSTART
-SELECT COUNT(*) >= $PLUGIN_really_long_queries_running FROM INFORMATION_SCHEMA.PROCESSLIST
- WHERE ID<>CONNECTION_ID() AND
- COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Sleep')
- AND USER<>'system user'
- AND Time >= $PLUGIN_really_long_query_time
--- QUERYEND
+    PLUGIN_too_many_really_slow=$(mysql -ss <<<"
+    -- QUERYSTART
+    SELECT COUNT(*) >= $PLUGIN_really_long_queries_running FROM information_schema.processlist
+     WHERE ID<>CONNECTION_ID()
+     AND COMMAND NOT IN ('Binlog Dump','Connect','Daemon','Kill','Processlist','Shutdown','Sleep')
+     AND STATE NOT IN ('altering table','discard_or_import_tablespace','Killed','Rolling back','User lock','User sleep')
+     AND USER NOT IN ('system user')
+     AND Time >= $PLUGIN_really_long_query_time
+     AND INFO <> 'rollback'
+     AND INFO LIKE '$PLUGIN_client_command'
+    -- QUERYEND
 ")
 
-
-if [[ $PLUGIN_too_many_slow -eq 1 || $PLUGIN_too_many_really_slow -eq 1 ]]
- then echo 1
- else echo 0
-fi
-
+    if [[ $PLUGIN_too_many_slow -eq 1 || $PLUGIN_too_many_really_slow -eq 1 ]]; then
+        echo 1
+    else
+        echo 0
+    fi
 }
 
+before_collect() {
+    [[ -f "$(mysql -ss <<< 'select @@general_log_file')" ]] &&
+        truncate -s0 "$(mysql -ss <<< 'select @@general_log_file')"
+    mysql -ss <<< "set global general_log=1;" || true
+}
+
+after_collect() {
+    mysql -ss <<< "set global general_log=0;" || true
+    mv "$(mysql -ss <<< 'select @@general_log_file')" "$OPT_DEST/$prefix-generallog" || true
+    chown root: "$OPT_DEST/$prefix-generallog" || true
+}
+
+# Uncomment the following line, if you are testing outside of pt-stalk
 #trg_plugin
