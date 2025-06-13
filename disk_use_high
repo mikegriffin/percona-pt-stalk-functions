@@ -1,0 +1,74 @@
+####
+# Example:
+# pt-stalk --variable=disk_use --threshold=0 --cycles=1 --function /root/stalk-trigger.sh
+####
+
+# PLUGIN_diskusegbcheck should be an integer
+# PLUGIN_mountpointchecked must be a mount point
+# PLUGIN_mycnf must be valid and contain socket
+# default action is to echo 0 if any of the above is incorrect
+
+trg_plugin() {
+
+    PLUGIN_diskusegbcheck=25
+    PLUGIN_mountpointchecked=/
+    PLUGIN_mycnf=/root/.my.cnf
+
+    ## Pretend there is no high disk use between certain times
+    PLUGIN_suppression_during=0
+    PLUGIN_suppression_start=0330
+    PLUGIN_suppression_end=0400
+
+    for PLUGIN_i in awk bc date mountpoint sed; do
+        [[ -x $(which "${PLUGIN_i}" 2>/dev/null) ]] || {
+            echo "FAILED: command ${PLUGIN_i} not found"
+            exit 1
+        }
+    done
+
+    if [[ "${PLUGIN_suppression_during}" -eq 1 ]]; then
+        PLUGIN_now=$(date +"%H%M")
+        if [[ ("$PLUGIN_now" -gt "$PLUGIN_suppression_start" && "$PLUGIN_now" -lt "$PLUGIN_suppression_end") ]]; then
+                echo 0
+                exit 0
+        fi
+    fi
+
+    if [[ -d "${PLUGIN_mountpointchecked}" ]]; then
+        mountpoint -q ${PLUGIN_mountpointchecked} || {
+            echo 0
+            exit 0
+        }
+    else
+            echo 0
+            exit 0
+    fi
+
+    if [[ -f "${PLUGIN_mycnf}" ]]; then
+        PLUGIN_mysock=$(awk -F= '$1 ~ /socket/ {print $2}' <"${PLUGIN_mycnf}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        [[ -z ${PLUGIN_mysock} ]] && {
+            echo 0
+            exit 0
+        }
+    else
+            echo 0
+            exit 0
+    fi
+
+    if [[ -S "${PLUGIN_mysock}" ]]; then
+        PLUGIN_diskused=$(df "${PLUGIN_mountpointchecked}" | awk '$NF ~ /\// {print $3/1024/1024}')
+        PLUGIN_toomuchused=$(echo "${PLUGIN_diskused}>${PLUGIN_diskusegbcheck}" | bc -lq)
+        if [[ "${PLUGIN_toomuchused}" -gt 1 ]]; then
+            # extra commands can run here, when disk used larger than PLUGIN_diskusegbcheck and socket exists
+            true
+        fi
+        echo "${PLUGIN_toomuchused}"
+        exit 0
+    else
+            echo 0
+            exit 0
+    fi
+}
+
+### Uncomment only if testing outside of pt-stalk
+#trg_plugin
