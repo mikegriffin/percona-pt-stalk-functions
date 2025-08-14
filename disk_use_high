@@ -58,9 +58,13 @@ trg_plugin() {
     if [[ -S "${PLUGIN_mysock}" ]]; then
         PLUGIN_diskused=$(df "${PLUGIN_mountpointchecked}" | awk '$NF ~ /\// {print $3/1024/1024}')
         PLUGIN_toomuchused=$(echo "${PLUGIN_diskused}>${PLUGIN_diskusegbcheck}" | bc -lq)
-        if [[ "${PLUGIN_toomuchused}" -gt 1 ]]; then
+        if [[ "${PLUGIN_toomuchused}" -eq 1 ]]; then
             # extra commands can run here, when disk used larger than PLUGIN_diskusegbcheck and socket exists
             true
+            # example, wait a few seconds and make sure disk space used is still higher than expected
+            #sleep 5
+            #PLUGIN_diskused=$(df "${PLUGIN_mountpointchecked}" | awk '$NF ~ /\// {print $3/1024/1024}')
+            #PLUGIN_toomuchused=$(echo "${PLUGIN_diskused}>${PLUGIN_diskusegbcheck}" | bc -lq)
         fi
         echo "${PLUGIN_toomuchused}"
         exit 0
