@@ -10,7 +10,6 @@
 ## Capture stack via gdb before collection
 # https://poormansprofiler.org/
 PLUGIN_pmpsh=/root/pmp.sh
-PLUGIN_pmpsh_out=/tmp/pt_stalk_pmp.stack
 
 trg_plugin() {
     ## LIKE match state column (case insensitive)
