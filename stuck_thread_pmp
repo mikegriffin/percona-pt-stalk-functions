@@ -1,0 +1,55 @@
+##############
+#
+# Example:
+# pt-stalk --cycles=1 --run-time=30 --threshold=0 --function /root/stalk-trigger.sh
+#
+##############
+
+#### If you set --threshold > 0 you will not get a collect()
+
+## Capture stack via gdb before collection
+# https://poormansprofiler.org/
+PLUGIN_pmpsh=/root/pmp.sh
+PLUGIN_pmpsh_out=/tmp/pt_stalk_pmp.stack
+
+trg_plugin() {
+    ## LIKE match state column (case insensitive)
+    PLUGIN_process_state='User sleep'
+
+    ## Pretend there is no load between certain times
+    PLUGIN_suppression_during=0
+    PLUGIN_suppression_start=0200
+    PLUGIN_suppression_end=0400
+
+    if [[ "${PLUGIN_suppression_during}" -eq 1 ]]; then
+        now=$(date +"%H%M")
+        # intentionally using "string comparison" due to leading zero
+        if [[ ("$now" > "$PLUGIN_suppression_start" && "$now" < "$PLUGIN_suppression_end") ]]; then
+            echo 0
+            exit 0
+        fi
+    fi
+
+    PLUGIN_state_found=$(mysql -ss <<<"
+    -- QUERYSTART
+    SELECT COUNT(*) >= 1 FROM information_schema.processlist
+     WHERE ID<>CONNECTION_ID()
+     AND Time >= 1
+     AND LOWER(STATE) LIKE LOWER('$PLUGIN_process_state')
+    -- QUERYEND
+")
+
+    if [[ $PLUGIN_state_found -eq 1 ]]; then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+before_collect() {
+    "${PLUGIN_pmpsh}" &> "${OPT_DEST}/${prefix}-pmp"
+    chown root: "${OPT_DEST}/${prefix}-pmp" || true
+}
+
+# Uncomment the following line, if you are testing outside of pt-stalk
+#trg_plugin
