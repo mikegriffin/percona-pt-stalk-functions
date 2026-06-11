@@ -1,0 +1,29 @@
+####
+# Example:
+# pt-stalk --variable=lock_timeout_imminent --threshold=0 --cycles=1 --function /root/lock_timeout_imminent
+####
+#### If you set --threshold > 0 you will not get a collect()
+####
+
+trg_plugin() {
+
+PLUGIN_lock_wait_threshold_pct=0.8
+
+PLUGIN_lock_timeout_imminent=$(mariadb --defaults-file=/root/.my.cnf -ss <<< "
+-- QUERYSTART
+SELECT
+    IF(MAX(TIMESTAMPDIFF(SECOND, r.trx_wait_started, CURRENT_TIMESTAMP)) > (@@innodb_lock_wait_timeout * $PLUGIN_lock_wait_threshold_pct), TRUE, FALSE) AS any_transaction_near_timeout
+FROM information_schema.INNODB_TRX AS r
+WHERE r.trx_wait_started IS NOT NULL;
+-- QUERYEND
+")
+
+if [[ $PLUGIN_lock_timeout_imminent -eq 1 ]]
+ then echo 1
+ else echo 0
+fi
+
+}
+
+# Uncomment the following line, if testing outside of pt-stalk
+#trg_plugin
